@@ -1,0 +1,1166 @@
+openapi: 3.0.3
+info:
+  title: LMS - Leave Management System API (Clean)
+  version: '1.0.0'
+  description: |
+    Clean OpenAPI 3.0.3 specification for the Leave Management System (LMS).
+    This file is a fresh, validated replacement candidate and is independent of
+    the previously edited `api-new-proposed.yaml`.
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    Role:
+      type: string
+      enum: [admin, manager, employee]
+
+    UserBase:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/Role'
+        manager_id:
+          type: integer
+          nullable: true
+        office_id:
+          type: integer
+          nullable: true
+        working_days_id:
+          type: integer
+          nullable: true
+
+    UserResponse:
+      allOf:
+        - $ref: '#/components/schemas/UserBase'
+        - type: object
+          properties:
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    Office:
+      type: object
+      properties:
+        id:
+          type: integer
+        location:
+          type: string
+
+    OfficeHoliday:
+      type: object
+      properties:
+        id:
+          type: integer
+        office_id:
+          type: integer
+        date:
+          type: string
+          format: date
+        title:
+          type: string
+        count:
+          type: integer
+
+    WorkingDay:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sunday:
+          type: boolean
+        monday:
+          type: boolean
+        tuesday:
+          type: boolean
+        wednesday:
+          type: boolean
+        thursday:
+          type: boolean
+        friday:
+          type: boolean
+        saturday:
+          type: boolean
+
+    LeaveType:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+
+    LeaveRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        leave_types_id:
+          type: integer
+        days:
+          type: number
+          format: float
+          description: 'Total fractional days (0.5 for half-day, 1 for full-day, 2.5 for 2.5 days, etc.)'
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        reason:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmployeeLeaveDetail'
+          description: 'Per-day leave category breakdown'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      example:
+        id: 101
+        user_id: 5
+        start_date: '2025-12-24'
+        end_date: '2025-12-26'
+        leave_types_id: 1
+        days: 2.5
+        status: pending
+        reason: 'Family holiday'
+        details:
+          - id: 1
+            leave_requests_id: 101
+            leave_category: second_half
+            date: '2025-12-24'
+          - id: 2
+            leave_requests_id: 101
+            leave_category: full_day
+            date: '2025-12-25'
+          - id: 3
+            leave_requests_id: 101
+            leave_category: first_half
+            date: '2025-12-26'
+        created_at: '2025-12-15T10:00:00Z'
+        updated_at: '2025-12-15T10:00:00Z'
+
+    LeaveCategory:
+      type: string
+      enum: [full_day, first_half, second_half]
+      description: 'full_day: entire day, first_half: morning/first 4 hours, second_half: afternoon/last 4 hours'
+
+    EmployeeLeaveDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        leave_requests_id:
+          type: integer
+        leave_category:
+          $ref: '#/components/schemas/LeaveCategory'
+        date:
+          type: string
+          format: date
+      example:
+        id: 1
+        leave_requests_id: 101
+        leave_category: full_day
+        date: '2025-12-24'
+
+    LeaveDetailInput:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        leave_category:
+          $ref: '#/components/schemas/LeaveCategory'
+      required: [date, leave_category]
+      example:
+        date: '2025-12-24'
+        leave_category: full_day
+
+    LeaveApplicationRequest:
+      type: object
+      properties:
+        user_id:
+          type: integer
+        leave_types_id:
+          type: integer
+        start_date:
+          type: string
+          format: date
+          description: 'First date of the leave period'
+        end_date:
+          type: string
+          format: date
+          description: 'Last date of the leave period (can equal start_date for single-day leaves)'
+        days:
+          type: number
+          format: float
+          description: 'Total leave days (0.5 for half-day, 1 for full-day, etc.)'
+        reason:
+          type: string
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaveDetailInput'
+          description: 'Per-day breakdown with leave_category for each date'
+      required: [user_id, leave_types_id, start_date, end_date, details]
+      example:
+        user_id: 5
+        leave_types_id: 1
+        start_date: '2025-12-24'
+        end_date: '2025-12-26'
+        days: 2.5
+        reason: 'Family holiday'
+        details:
+          - date: '2025-12-24'
+            leave_category: second_half
+          - date: '2025-12-25'
+            leave_category: full_day
+          - date: '2025-12-26'
+            leave_category: first_half
+
+    EmployeeLeave:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        total_leave:
+          type: number
+          format: float
+        used_leave:
+          type: number
+          format: float
+        leave_type_id:
+          type: integer
+
+    DashboardFilterPeriod:
+      type: string
+      enum: [day, week, month, days, weeks, months]
+      description: 'Filter period type'
+
+    DashboardLeaveDetail:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        user_id:
+          type: integer
+        user_name:
+          type: string
+        leave_type:
+          type: string
+        leave_category:
+          type: string
+          enum: [full_day, first_half, second_half]
+        status:
+          type: string
+          enum: [approved, rejected, pending]
+      example:
+        date: '2025-12-24'
+        user_id: 5
+        user_name: 'John Doe'
+        leave_type: 'Casual Leave'
+        leave_category: 'second_half'
+        status: 'approved'
+
+    DashboardSummaryResponse:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            type:
+              $ref: '#/components/schemas/DashboardFilterPeriod'
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+        day_wise_leaves:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              total_leaves:
+                type: integer
+              leave_details:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DashboardLeaveDetail'
+          description: 'Approved leaves grouped by date'
+        user_wise_leaves:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id:
+                type: integer
+              user_name:
+                type: string
+              total_leave_days:
+                type: number
+                format: float
+              leave_details:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DashboardLeaveDetail'
+          description: 'Approved leaves grouped by user'
+        summary_stats:
+          type: object
+          properties:
+            total_approved_leaves:
+              type: number
+              format: float
+            total_users_on_leave:
+              type: integer
+            pending_approvals:
+              type: integer
+      example:
+        period:
+          type: 'week'
+          start_date: '2025-12-22'
+          end_date: '2025-12-28'
+        day_wise_leaves:
+          - date: '2025-12-24'
+            total_leaves: 2
+            leave_details:
+              - date: '2025-12-24'
+                user_id: 5
+                user_name: 'John Doe'
+                leave_type: 'Casual Leave'
+                leave_category: 'second_half'
+                status: 'approved'
+              - date: '2025-12-24'
+                user_id: 8
+                user_name: 'Jane Smith'
+                leave_type: 'Paid Leave'
+                leave_category: 'full_day'
+                status: 'approved'
+        user_wise_leaves:
+          - user_id: 5
+            user_name: 'John Doe'
+            total_leave_days: 2.5
+            leave_details:
+              - date: '2025-12-24'
+                user_id: 5
+                user_name: 'John Doe'
+                leave_type: 'Casual Leave'
+                leave_category: 'second_half'
+                status: 'approved'
+              - date: '2025-12-25'
+                user_id: 5
+                user_name: 'John Doe'
+                leave_type: 'Casual Leave'
+                leave_category: 'full_day'
+                status: 'approved'
+          - user_id: 8
+            user_name: 'Jane Smith'
+            total_leave_days: 1.0
+            leave_details:
+              - date: '2025-12-24'
+                user_id: 8
+                user_name: 'Jane Smith'
+                leave_type: 'Paid Leave'
+                leave_category: 'full_day'
+                status: 'approved'
+        summary_stats:
+          total_approved_leaves: 3.5
+          total_users_on_leave: 2
+          pending_approvals: 1
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [auth]
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+              required: [email, password]
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        '401':
+          description: Invalid credentials
+
+  /api/auth/invite:
+    post:
+      tags: [auth]
+      summary: Invite a new user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [admin, manager, employee]
+                office_id:
+                  type: integer
+                working_days_id:
+                  type: integer
+                manager_id:
+                  type: integer
+              required: [name, email]
+      responses:
+        '201':
+          description: Invitation created
+
+  /api/auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change password for authenticated user
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                old_password:
+                  type: string
+                new_password:
+                  type: string
+              required: [old_password, new_password]
+      responses:
+        '200':
+          description: Password changed
+
+  /api/users:
+    get:
+      tags: [users]
+      summary: List users (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Paged users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse'
+
+  /api/users/{id}:
+    get:
+      tags: [users]
+      summary: Get user by id (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+    put:
+      tags: [users]
+      summary: Update user details (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "John Doe Updated"
+                email:
+                  type: string
+                  format: email
+                  example: "john.updated@example.com"
+                phone:
+                  type: string
+                  example: "+1234567890"
+                manager_id:
+                  type: integer
+                  nullable: true
+                  example: 2
+                office_id:
+                  type: integer
+                  example: 1
+                working_days_id:
+                  type: integer
+                  example: 1
+              required: [name, email, office_id, working_days_id]
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          description: Validation error
+        '404':
+          description: User not found
+        '403':
+          description: Unauthorized - admin only
+
+  /api/offices:
+    get:
+      tags: [offices]
+      summary: List offices
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Offices list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Office'
+    post:
+      tags: [offices]
+      summary: Create office (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                location:
+                  type: string
+              required: [location]
+      responses:
+        '201':
+          description: Created
+
+  /api/offices/{id}/holidays:
+    get:
+      tags: [offices]
+      summary: Get public holidays for an office
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Holidays list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OfficeHoliday'
+    post:
+      tags: [offices]
+      summary: Add public holiday to office (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                title:
+                  type: string
+                count:
+                  type: integer
+              required: [date, title]
+      responses:
+        '201':
+          description: Holiday created
+
+  /api/working-days:
+    get:
+      tags: [working-days]
+      summary: List working day patterns
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Patterns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkingDay'
+    post:
+      tags: [working-days]
+      summary: Create a working day pattern (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkingDay'
+      responses:
+        '201':
+          description: Created
+
+  /api/leave-types:
+    get:
+      tags: [leave-types]
+      summary: List leave types
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Leave types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveType'
+    post:
+      tags: [leave-types]
+      summary: Create leave type (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveType'
+      responses:
+        '201':
+          description: Created
+
+  /api/leaves:
+    post:
+      tags: [leaves]
+      summary: Apply for leave with per-day category breakdown
+      description: |
+        Apply for leave with detailed per-day leave_category specification.
+        - For single-day full leave: start_date == end_date, details has 1 entry with full_day
+        - For single-day half leave: start_date == end_date, details has 1 entry with first_half or second_half
+        - For multi-day: start_date to end_date, details array has one entry per date with corresponding leave_category
+        The 'days' field should be the sum of fractional days (e.g., 0.5 for half-day, 1 for full-day)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveApplicationRequest'
+      responses:
+        '201':
+          description: Leave requested successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+        '400':
+          description: Invalid leave details (e.g., dates mismatch, invalid leave_category)
+        '401':
+          description: Unauthorized
+    get:
+      tags: [leaves]
+      summary: List my leave requests (retrieve all my leaves with optional status filter)
+      description: |
+        Retrieve all leave requests for the current user.
+        Regular users can only see their own leaves.
+        Use POST /api/leaves/filter for advanced period-based filtering.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, cancelled]
+          description: 'Optional: filter by leave status'
+      responses:
+        '200':
+          description: List of all leave requests for current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+        '401':
+          description: Unauthorized
+
+  /api/leaves/filter:
+    post:
+      tags: [leaves]
+      summary: List leave requests with flexible period filters
+      description: |
+        Retrieve leave requests filtered by period and optional criteria.
+        Users can filter by:
+        - Single day, week, or month
+        - Custom date range (days)
+        - Last N weeks or last N months
+        Non-admin users see only their own leaves. Admins can filter by user_id to see others' leaves.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period_type:
+                  $ref: '#/components/schemas/DashboardFilterPeriod'
+                  description: 'Type of period filter: day, week, month, days, weeks, months'
+                date:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "day". Specific date (e.g., 2025-12-24)'
+                week_start:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "week". Monday of target week (e.g., 2025-12-22)'
+                month:
+                  type: string
+                  description: 'Required if period_type is "month". Month in YYYY-MM format (e.g., 2025-12)'
+                start_date:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "days". Start of date range'
+                end_date:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "days". End of date range'
+                weeks:
+                  type: integer
+                  description: 'Required if period_type is "weeks". Number of weeks to look back (e.g., 2)'
+                months:
+                  type: integer
+                  description: 'Required if period_type is "months". Number of months to look back (e.g., 3)'
+                user_id:
+                  type: integer
+                  description: 'Optional: filter by user_id (admin only). If not provided, returns current user leaves'
+                status:
+                  type: string
+                  enum: [pending, approved, rejected, cancelled]
+                  description: 'Optional: filter by leave status'
+              required: [period_type]
+            examples:
+              day_example:
+                value:
+                  period_type: 'day'
+                  date: '2025-12-24'
+                  status: 'approved'
+              week_example:
+                value:
+                  period_type: 'week'
+                  week_start: '2025-12-22'
+              month_example:
+                value:
+                  period_type: 'month'
+                  month: '2025-12'
+                  user_id: 5
+              days_example:
+                value:
+                  period_type: 'days'
+                  start_date: '2025-12-24'
+                  end_date: '2025-12-26'
+              weeks_example:
+                value:
+                  period_type: 'weeks'
+                  weeks: 2
+              months_example:
+                value:
+                  period_type: 'months'
+                  months: 3
+                  status: 'pending'
+      responses:
+        '200':
+          description: List of leave requests matching the filters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveRequest'
+        '400':
+          description: Invalid filter parameters (missing required fields for period_type)
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (non-admin cannot filter by other user_id)
+
+  /api/leaves/{id}:
+    get:
+      tags: [leaves]
+      summary: Get leave request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Leave details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveRequest'
+    put:
+      tags: [leaves]
+      summary: Update leave request (cancel or modify before approval)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+      responses:
+        '200':
+          description: Updated
+    delete:
+      tags: [leaves]
+      summary: Delete/cancel leave request
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+
+  /api/leaves/{id}/approve:
+    post:
+      tags: [leaves]
+      summary: Approve or reject leave (manager/admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected]
+                comment:
+                  type: string
+              required: [status]
+      responses:
+        '200':
+          description: Status updated
+
+  /api/employee-leaves/{user_id}:
+    get:
+      tags: [leaves]
+      summary: Get leave balance for a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Leave balance
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployeeLeave'
+
+  /api/employee-leaves/{user_id}/allocate:
+    post:
+      tags: [leaves]
+      summary: Allocate/set leave balance for a user (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leave_type_id:
+                  type: integer
+                  description: 'Leave type to allocate'
+                total_leave:
+                  type: number
+                  format: float
+                  description: 'Total days to allocate for this leave type'
+                used_leave:
+                  type: number
+                  format: float
+                  description: 'Optional: already used days (default 0)'
+              required: [leave_type_id, total_leave]
+              example:
+                leave_type_id: 1
+                total_leave: 15.0
+                used_leave: 0.0
+      responses:
+        '201':
+          description: Leave balance allocated/updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeLeave'
+        '400':
+          description: Invalid input (leave type not found, user not found, etc.)
+        '403':
+          description: Forbidden (only admin can allocate leave)
+
+  /api/calendar/{user_id}/{year}:
+    get:
+      tags: [offices]
+      summary: Get year-wise calendar for a user (combines working days and office holidays)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Year calendar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  year:
+                    type: integer
+                  days:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          format: date
+                        is_working_day:
+                          type: boolean
+                        is_holiday:
+                          type: boolean
+                        holiday_title:
+                          type: string
+
+  /api/dashboard/summary:
+    post:
+      tags: [dashboard]
+      summary: Dashboard summary with approved leaves grouped by date and user (visible to all authenticated users)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                period_type:
+                  $ref: '#/components/schemas/DashboardFilterPeriod'
+                  description: 'Type of period to filter: day, week, month, days, weeks, months'
+                date:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "day". Specific date to fetch leave details for.'
+                start_date:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "days". Start date of the range.'
+                end_date:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "days". End date of the range.'
+                week_start:
+                  type: string
+                  format: date
+                  description: 'Required if period_type is "week". Monday of the target week (YYYY-MM-DD where DD is a Monday).'
+                weeks:
+                  type: integer
+                  description: 'Required if period_type is "weeks". Number of weeks to look back from today (e.g., 2 means last 2 weeks).'
+                month:
+                  type: string
+                  description: 'Required if period_type is "month". Month in YYYY-MM format (e.g., "2025-12").'
+                months:
+                  type: integer
+                  description: 'Required if period_type is "months". Number of months to look back from today (e.g., 3 means last 3 months).'
+              required: [period_type]
+            examples:
+              day_example:
+                value:
+                  period_type: 'day'
+                  date: '2025-12-24'
+              week_example:
+                value:
+                  period_type: 'week'
+                  week_start: '2025-12-22'
+              month_example:
+                value:
+                  period_type: 'month'
+                  month: '2025-12'
+              days_example:
+                value:
+                  period_type: 'days'
+                  start_date: '2025-12-24'
+                  end_date: '2025-12-26'
+              weeks_example:
+                value:
+                  period_type: 'weeks'
+                  weeks: 2
+              months_example:
+                value:
+                  period_type: 'months'
+                  months: 3
+      responses:
+        '200':
+          description: Dashboard summary with leave details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardSummaryResponse'
+        '400':
+          description: Invalid filter parameters (missing required fields for period_type)
+        '401':
+          description: Unauthorized
+
+security:
+  - bearerAuth: []
